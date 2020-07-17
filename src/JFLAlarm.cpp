@@ -1,0 +1,48 @@
+#include "../include/JFLAlarm.hpp"
+
+// Static members
+uint8_t JFLAlarm::pinLED;
+uint8_t JFLAlarm::pinSIN;
+uint8_t JFLAlarm::pinLIGA;
+
+
+// Static methods
+void JFLAlarm::setup(uint8_t pinLED, uint8_t pinSIN, uint8_t pinLIGA) {
+
+    JFLAlarm::pinLED = pinLED;        
+    JFLAlarm::pinSIN = pinSIN;
+    JFLAlarm::pinLIGA = pinLIGA;
+
+    // pinModes
+    pinMode(JFLAlarm::pinLIGA, OUTPUT);
+    pinMode(JFLAlarm::pinLED, INPUT_PULLDOWN);
+    pinMode(JFLAlarm::pinSIN, INPUT_PULLDOWN);
+
+    // pinLIGA is active on LOW state
+    digitalWrite(JFLAlarm::pinLIGA, HIGH);
+}
+
+
+void JFLAlarm::setAlarm(bool set) {
+
+    // Reading LED pin
+    int currentState = digitalRead(JFLAlarm::pinLED);
+    
+    // Changing state (enabled and want to disable) or (disabled and and want to enable)
+    if((currentState > 0 && !set) || (currentState == 0 && set)) {
+        // 1 seg pulse
+        digitalWrite(JFLAlarm::pinLIGA, LOW);
+
+        delay(1000);
+
+        digitalWrite(JFLAlarm::pinLIGA, HIGH);
+    }
+}
+
+void JFLAlarm::writeStatusMessage(char *buf, size_t len) {
+
+    int currentEnabled = digitalRead(JFLAlarm::pinLED);
+    int currentTriggered = digitalRead(JFLAlarm::pinSIN);
+
+    snprintf(buf, len, "Current Status:\r\nArmed: %d\r\nTriggered: %d", currentEnabled, currentTriggered);
+}
