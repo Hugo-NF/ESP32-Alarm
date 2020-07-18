@@ -10,7 +10,7 @@
   Pinout:
     JFLAlarm::pinLED = GPIO_NUM_25;        
     JFLAlarm::pinSIN = GPIO_NUM_19;
-    JFLAlarm::pinLIGA = GPIO_NUM_34;
+    JFLAlarm::pinLIGA = GPIO_NUM_12;
 */
 
 // Project files 
@@ -79,7 +79,7 @@ void makeCall(char *numberID) {
 void setup() {
   Serial.begin(9600);
   // Setup Alarm pins
-  JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_19, GPIO_NUM_26);
+  JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_19, GPIO_NUM_12);
   
   // Get initial state
   lastLED = digitalRead(JFLAlarm::pinLED);
@@ -193,7 +193,7 @@ void loop() {
 
       while (1) {
         if (sim800l.deleteSMS(slot)) {
-          Serial.println(F("OK!"));
+          Serial.printf("Slot %d clear\n", slot);
           break;
         }
         else {
