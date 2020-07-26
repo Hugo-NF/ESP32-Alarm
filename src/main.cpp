@@ -43,6 +43,7 @@ int lastSIN;
 unsigned long lastSINEvent;
 
 // Alarm state control
+hw_timer_t *timer = NULL;
 bool isArming = false;
 volatile bool pendingAlarm = false;
 volatile int nextNotify = 0;
@@ -92,9 +93,28 @@ void makeCall(char *numberID) {
   }
 }
 
+void IRAM_ATTR timerISR() {
+  Serial.println("2 minutes elapsed. Calling next number");
+  if(pendingAlarm) {
+    makeCall(allowedNumbers[nextNotify]);
+    if(nextNotify < AMT_NUMBERS - 1) {
+      nextNotify += 1;
+    }
+    else {
+      nextNotify = 0;
+    }
+  }
+}
 
 void setup() {
+  // Start serial uart
   Serial.begin(9600);
+
+  // Setup timer
+  timer = timerBegin(0, 80, true);
+  timerAttachInterrupt(timer, &timerISR, true);
+  
+
   // Setup Alarm pins
   JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_19, GPIO_NUM_12);
   
@@ -188,6 +208,7 @@ void loop() {
 
           delay(100);
           JFLAlarm::setAlarm(true);
+          isArming = true;
         }
         else if (smsString == "DESARMAR") {
           Serial.println("Disable alarm requested");
@@ -251,19 +272,6 @@ void loop() {
           }
         }
       }
-      else {
-        sendSMS(callerIDbuffer, "Esse numero nao e autorizado a acessar o sistema");
-        while (1) {
-          if (sim800l.deleteSMS(slot)) {
-            Serial.printf("Slot %d clear\n", slot);
-            break;
-          }
-          else {
-            Serial.print(F("Couldn't delete SMS in slot ")); Serial.println(slot);
-            sim800l.print(F("AT+CMGD=?\r\n"));
-          }
-        }
-      }
     }
   }
 
@@ -289,9 +297,31 @@ void loop() {
   // State changed && (Debouncing elapsed || Timer overflow)
   if((currentSIN != lastSIN) && ((((currentTimestamp - lastSINEvent) > eventsInterval)) || (currentTimestamp < lastSINEvent))) {
       if(lastSIN == 0 && currentSIN > 0) {
-        makeCall(allowedNumbers[1]);
+        if(isArming){
+          isArming = false;
+          delay(1000);
+        }
+        else {
+          makeCall(allowedNumbers[nextNotify]);
+          if(nextNotify < AMT_NUMBERS - 1) {
+            nextNotify += 1;
+          }
+          else {
+            nextNotify = 0;
+          }
+          pendingAlarm = true;
+
+          // 1 minute interval
+          timerAlarmWrite(timer, 120000000, true);
+          timerAlarmEnable(timer);
+        }
       }
       else if(lastSIN > 0 && currentSIN == 0) {
+        // Disables the timer (prevents calling the next number)
+        timerAlarmDisable(timer);
+        pendingAlarm = false;
+        nextNotify = 0;
+
         sendSMS(allowedNumbers[0], "Sirene desligada");
       }
       lastSIN = currentSIN;
