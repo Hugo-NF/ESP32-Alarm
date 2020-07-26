@@ -44,5 +44,5 @@ void JFLAlarm::writeStatusMessage(char *buf, size_t len) {
     int currentEnabled = digitalRead(JFLAlarm::pinLED);
     int currentTriggered = digitalRead(JFLAlarm::pinSIN);
 
-    snprintf(buf, len, "Current Status:\r\nArmed: %d\r\nTriggered: %d", currentEnabled, currentTriggered);
+    snprintf(buf, len, "Status atual:\r\nArmado: %d\r\nDisparo: %d", currentEnabled, currentTriggered);
 }

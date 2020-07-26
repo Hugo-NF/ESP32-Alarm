@@ -27,6 +27,7 @@
 #define SIM800L_POWER  23
 
 // Size defs
+#define AMT_NUMBERS 3
 #define SMS_BUF_LEN 255
 #define NOTIFICATION_BUF_LEN 64
 #define CALLER_ID_BUF_LEN 32
@@ -41,8 +42,13 @@ unsigned long lastLEDEvent;
 int lastSIN;
 unsigned long lastSINEvent;
 
+// Alarm state control
+bool isArming = false;
+volatile bool pendingAlarm = false;
+volatile int nextNotify = 0;
 
 // Buffers
+char allowedNumbers[AMT_NUMBERS][CALLER_ID_BUF_LEN] = { "+5561999267740", "+5561991101515", "+5561992404979" };                   //numbers allowed to use
 char replybuffer[SMS_BUF_LEN];
 char sim800lNotificationBuffer[NOTIFICATION_BUF_LEN];          //for notifications from the FONA
 char smsBuffer[SMS_BUF_LEN];
@@ -57,11 +63,21 @@ Adafruit_FONA sim800l = Adafruit_FONA(SIM800L_PWRKEY);
 
 uint8_t readline(char *buff, uint8_t maxbuff, uint16_t timeout = 0);
 
+bool isAllowed(char *number) {
+  for(int index = 0; index < AMT_NUMBERS; index++) {
+    if(strcmp(number, allowedNumbers[index]) == 0) {
+      return true;
+    }
+  }
+  return false;
+}
+
 void sendSMS(char *numberID, char *smsText) {
   // Send SMS for status
   if (!sim800l.sendSMS(numberID, smsText)) {
     Serial.println(F("SMS Failed"));
-  } else {
+  } 
+  else {
     Serial.println(F("SMS Sent!"));
   }
 }
@@ -70,7 +86,8 @@ void makeCall(char *numberID) {
   // Send SMS for status
   if (!sim800l.callPhone(numberID)) {
     Serial.println(F("Call Failed"));
-  } else {
+  } 
+  else {
     Serial.println(F("Call Completed!"));
   }
 }
@@ -139,66 +156,112 @@ void loop() {
     //Scan the notification string for an SMS received notification.
     //  If it's an SMS message, we'll get the slot number in 'slot'
     if (1 == sscanf(sim800lNotificationBuffer, "+CMTI: \"SM\",%d", &slot)) {
-      Serial.print("slot: "); Serial.println(slot);
+      Serial.printf("slot: %d\n", slot);
       
       // Retrieve SMS sender address/phone number.
       if (!sim800l.getSMSSender(slot, callerIDbuffer, CALLER_ID_BUF_LEN-1)) {
-          Serial.println("Didn't find SMS message in slot!");
+        Serial.println("Didn't find SMS message in slot!");
       }
       Serial.print(F("FROM: ")); Serial.println(callerIDbuffer);
 
-      // Retrieve SMS value.
-      uint16_t smslen;
-      // Pass in buffer and max len!
-      if (sim800l.readSMS(slot, smsBuffer, 250, &smslen)) {
-        smsString = String(smsBuffer);
-        Serial.println(smsString);
-      }
+      if(isAllowed(callerIDbuffer)) {
+        // Retrieve SMS value.
+        uint16_t smslen;
+        // Pass in buffer and max len!
+        if (sim800l.readSMS(slot, smsBuffer, SMS_BUF_LEN, &smslen)) {
+          smsString = String(smsBuffer);
+          Serial.println(smsString);
+        }
+        // Uppercase command
+        smsString.toUpperCase();
 
-      // Uppercase command
-      smsString.toUpperCase();
+        if (smsString == "STATUS") {
+          Serial.println("Alarm status requested");
 
-      if (smsString == "STATUS") {
-        Serial.println("Alarm status requested");
+          delay(100);
+          JFLAlarm::writeStatusMessage(replybuffer, SMS_BUF_LEN);
 
-        delay(100);
-        JFLAlarm::writeStatusMessage(replybuffer, SMS_BUF_LEN);
+          sendSMS(callerIDbuffer, replybuffer);
+        }
+        else if (smsString == "ARMAR") {
+          Serial.println("Enable alarm requested");
 
-        sendSMS(callerIDbuffer, replybuffer);
-      }
-      else if (smsString == "ARMAR") {
-        Serial.println("Enable alarm requested");
+          delay(100);
+          JFLAlarm::setAlarm(true);
+        }
+        else if (smsString == "DESARMAR") {
+          Serial.println("Disable alarm requested");
 
-        delay(100);
-        JFLAlarm::setAlarm(true);
-      }
-      else if (smsString == "DESARMAR") {
-        Serial.println("Disable alarm requested");
+          delay(100);
+          JFLAlarm::setAlarm(false);
+        }
+        else if (smsString == "IMEI") {
+          Serial.println("IMEI number requested");
 
-        delay(100);
-        JFLAlarm::setAlarm(false);
-      }
-      else if (smsString == "IMEI") {
-        Serial.println("IMEI number requested");
+          delay(100);
+          sendSMS(callerIDbuffer, imei);
+        }
+        else if(smsString == "LISTAR") {
+          Serial.println("Number list requested");
 
-        delay(100);
-        sendSMS(callerIDbuffer, imei);
-      }
-      else if (smsString == "AJUDA") {
-        Serial.println("Help text requested");
+          delay(100);
+          snprintf(replybuffer, SMS_BUF_LEN, "Numeros:\n0. %s\n1. %s\n2. %s\n", 
+            allowedNumbers[0], allowedNumbers[1], allowedNumbers[2]);
+          sendSMS(callerIDbuffer, replybuffer);
+        }
+        else if(smsString.startsWith("REG")) {
+          Serial.println("Registering new number");
 
-        delay(100);
-        sendSMS(callerIDbuffer, "Comandos disponiveis: STATUS, ARMAR, DESARMAR, IMEI, AJUDA");
-      }
+          int index = smsString.lastIndexOf(' ');
+          int numReplNumber = smsString[index-1] - '0';
+          Serial.println(numReplNumber);
+          Serial.println((numReplNumber < AMT_NUMBERS - 1 && numReplNumber >= 0));
 
-      while (1) {
-        if (sim800l.deleteSMS(slot)) {
-          Serial.printf("Slot %d clear\n", slot);
-          break;
+          if(numReplNumber < AMT_NUMBERS && numReplNumber >= 0) {
+            Serial.printf("Replacing number on position %d\n", numReplNumber);
+            String newNumber = smsString.substring(index);
+            
+            strcpy(allowedNumbers[numReplNumber], newNumber.c_str());
+          }
+          
+          delay(100);
+          snprintf(replybuffer, SMS_BUF_LEN, "Numeros:\n0. %s\n1. %s\n2. %s\n", 
+            allowedNumbers[0], allowedNumbers[1], allowedNumbers[2]);
+          sendSMS(callerIDbuffer, replybuffer);
+        }
+        else if (smsString == "AJUDA") {
+          Serial.println("Help text requested");
+
+          delay(100);
+          sendSMS(callerIDbuffer, "Comandos disponiveis: STATUS, ARMAR, DESARMAR, IMEI, LISTAR, REG, AJUDA");
         }
         else {
-          Serial.print(F("Couldn't delete SMS in slot ")); Serial.println(slot);
-          sim800l.print(F("AT+CMGD=?\r\n"));
+          delay(100);
+          sendSMS(callerIDbuffer, "Comando desconhecido, envie AJUDA para ver os comandos disponiveis.");
+        }
+
+        while (1) {
+          if (sim800l.deleteSMS(slot)) {
+            Serial.printf("Slot %d clear\n", slot);
+            break;
+          }
+          else {
+            Serial.print(F("Couldn't delete SMS in slot ")); Serial.println(slot);
+            sim800l.print(F("AT+CMGD=?\r\n"));
+          }
+        }
+      }
+      else {
+        sendSMS(callerIDbuffer, "Esse numero nao e autorizado a acessar o sistema");
+        while (1) {
+          if (sim800l.deleteSMS(slot)) {
+            Serial.printf("Slot %d clear\n", slot);
+            break;
+          }
+          else {
+            Serial.print(F("Couldn't delete SMS in slot ")); Serial.println(slot);
+            sim800l.print(F("AT+CMGD=?\r\n"));
+          }
         }
       }
     }
@@ -213,10 +276,10 @@ void loop() {
   // State changed && (Debouncing elapsed || Timer overflow)
   if((currentLED != lastLED) && ((((currentTimestamp - lastLEDEvent) > eventsInterval)) || (currentTimestamp < lastLEDEvent))) {    
       if(lastLED == 0 && currentLED > 0) {
-          sendSMS("+5561991101515", "Alarme armado");
+        sendSMS(allowedNumbers[0], "Alarme armado");
       }
       else if(lastLED > 0 && currentLED == 0) {
-          sendSMS("+5561991101515", "Alarme desarmado");
+        sendSMS(allowedNumbers[0], "Alarme desarmado");
       }
       lastLED = currentLED;
       lastLEDEvent = currentTimestamp;
@@ -226,10 +289,10 @@ void loop() {
   // State changed && (Debouncing elapsed || Timer overflow)
   if((currentSIN != lastSIN) && ((((currentTimestamp - lastSINEvent) > eventsInterval)) || (currentTimestamp < lastSINEvent))) {
       if(lastSIN == 0 && currentSIN > 0) {
-          makeCall("+5561991101515");
+        makeCall(allowedNumbers[1]);
       }
       else if(lastSIN > 0 && currentSIN == 0) {
-          sendSMS("+5561991101515", "Sirene desligada");
+        sendSMS(allowedNumbers[0], "Sirene desligada");
       }
       lastSIN = currentSIN;
       lastSINEvent = currentTimestamp;
