@@ -26,10 +26,10 @@ void JFLAlarm::setup(uint8_t pinLED, uint8_t pinSIN, uint8_t pinLIGA) {
 void JFLAlarm::setAlarm(bool set) {
 
     // Reading LED pin
-    int currentState = digitalRead(JFLAlarm::pinLED);
+    int currentState = analogRead(JFLAlarm::pinLED);
     
     // Changing state (enabled and want to disable) or (disabled and and want to enable)
-    if((currentState > 0 && !set) || (currentState == 0 && set)) {
+    if((currentState >= INPUT_THRESHOLD && !set) || (currentState < INPUT_THRESHOLD && set)) {
         // 1 seg pulse
         digitalWrite(JFLAlarm::pinLIGA, LOW);
 

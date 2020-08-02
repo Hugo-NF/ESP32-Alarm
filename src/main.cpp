@@ -9,7 +9,7 @@
 
   Pinout:
     JFLAlarm::pinLED = GPIO_NUM_25;        
-    JFLAlarm::pinSIN = GPIO_NUM_19;
+    JFLAlarm::pinSIN = GPIO_NUM_15;
     JFLAlarm::pinLIGA = GPIO_NUM_12;
 */
 
@@ -27,6 +27,7 @@
 #define SIM800L_POWER  23
 
 // Size defs
+#define SMS_SLOTS 20
 #define AMT_NUMBERS 3
 #define SMS_BUF_LEN 255
 #define NOTIFICATION_BUF_LEN 64
@@ -37,9 +38,9 @@
 unsigned long currentTimestamp;
 unsigned long eventsInterval = 1000;
 
-int lastLED;
+uint16_t lastLED;
 unsigned long lastLEDEvent;
-int lastSIN;
+uint16_t lastSIN;
 unsigned long lastSINEvent;
 
 // Alarm state control
@@ -116,11 +117,11 @@ void setup() {
   
 
   // Setup Alarm pins
-  JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_19, GPIO_NUM_12);
+  JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_15, GPIO_NUM_12);
   
   // Get initial state
-  lastLED = digitalRead(JFLAlarm::pinLED);
-  lastSIN = digitalRead(JFLAlarm::pinSIN);
+  lastLED = analogRead(JFLAlarm::pinLED);
+  lastSIN = analogRead(JFLAlarm::pinSIN);
 
   lastLEDEvent = millis();
   lastSINEvent = millis();
@@ -277,16 +278,16 @@ void loop() {
 
   // Pulling changes on alarm
   currentTimestamp = millis();
-  int currentSIN = digitalRead(JFLAlarm::pinSIN);
-  int currentLED = digitalRead(JFLAlarm::pinLED);
+  uint16_t currentSIN = analogRead(JFLAlarm::pinSIN);
+  uint16_t currentLED = analogRead(JFLAlarm::pinLED);
 
   // Calculate transitions for LED
   // State changed && (Debouncing elapsed || Timer overflow)
-  if((currentLED != lastLED) && ((((currentTimestamp - lastLEDEvent) > eventsInterval)) || (currentTimestamp < lastLEDEvent))) {    
-      if(lastLED == 0 && currentLED > 0) {
+  if(((((currentTimestamp - lastLEDEvent) > eventsInterval)) || (currentTimestamp < lastLEDEvent))) {    
+      if(lastLED < INPUT_THRESHOLD && currentLED >= INPUT_THRESHOLD) {
         sendSMS(allowedNumbers[0], "Alarme armado");
       }
-      else if(lastLED > 0 && currentLED == 0) {
+      else if(lastLED >= INPUT_THRESHOLD && currentLED < INPUT_THRESHOLD) {
         sendSMS(allowedNumbers[0], "Alarme desarmado");
       }
       lastLED = currentLED;
@@ -295,8 +296,8 @@ void loop() {
 
   // Calculate transitions for SIN
   // State changed && (Debouncing elapsed || Timer overflow)
-  if((currentSIN != lastSIN) && ((((currentTimestamp - lastSINEvent) > eventsInterval)) || (currentTimestamp < lastSINEvent))) {
-      if(lastSIN == 0 && currentSIN > 0) {
+  if(((((currentTimestamp - lastSINEvent) > eventsInterval)) || (currentTimestamp < lastSINEvent))) {
+      if(lastSIN < INPUT_THRESHOLD && currentSIN >= INPUT_THRESHOLD) {
         if(isArming){
           isArming = false;
           delay(1000);
@@ -316,7 +317,7 @@ void loop() {
           timerAlarmEnable(timer);
         }
       }
-      else if(lastSIN > 0 && currentSIN == 0) {
+      else if(lastSIN >= INPUT_THRESHOLD && currentSIN < INPUT_THRESHOLD) {
         // Disables the timer (prevents calling the next number)
         timerAlarmDisable(timer);
         pendingAlarm = false;

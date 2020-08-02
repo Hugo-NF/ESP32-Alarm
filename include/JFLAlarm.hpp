@@ -3,6 +3,9 @@
 
 #include <Arduino.h>
 
+#define INPUT_THRESHOLD 2460
+
+
 /**
  * Pinout:
  * JFLAlarm::pinLED = GPIO_NUM_25;        
