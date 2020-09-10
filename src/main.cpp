@@ -8,9 +8,11 @@
   - Adafruit Fona Library by Adafruit Version 1.3.5
 
   Pinout:
-    JFLAlarm::pinLED = GPIO_NUM_25;        
-    JFLAlarm::pinSIN = GPIO_NUM_15;
-    JFLAlarm::pinLIGA = GPIO_NUM_12;
+    JFLAlarm::pinLED = GPIO_NUM_25 = preto;        
+    JFLAlarm::pinSIN = GPIO_NUM_15 = branco;
+    JFLAlarm::pinLIGA = GPIO_NUM_12 = cinza;
+    GND = verde
+    +5V = amarelo
 */
 
 // Project files 
