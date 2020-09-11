@@ -65,7 +65,13 @@ String smsString = "";
 HardwareSerial *sim800lSerial = &Serial1;
 Adafruit_FONA sim800l = Adafruit_FONA(SIM800L_PWRKEY);
 
+// Function prototypes (compiler look-ahead)
 uint8_t readline(char *buff, uint8_t maxbuff, uint16_t timeout = 0);
+
+bool isAllowed(char *number);
+void sendSMS(char *numberID, char *smsText);
+void makeCall(char *numberID);
+void clearSMSSlots(uint16_t amount);
 
 bool isAllowed(char *number) {
   for(int index = 0; index < AMT_NUMBERS; index++) {
@@ -84,6 +90,8 @@ void sendSMS(char *numberID, char *smsText) {
   else {
     Serial.println(F("SMS Sent!"));
   }
+  // SIM 800L Modem has 8 slots
+  clearSMSSlots(SMS_SLOTS);
 }
 
 void makeCall(char *numberID) {
@@ -96,6 +104,18 @@ void makeCall(char *numberID) {
   }
 }
 
+void clearSMSSlots(uint16_t amount) {
+  for(uint16_t index = 0; index < amount; index++) {
+    if (!sim800l.deleteSMS(index)) {
+      Serial.printf("SMS slot %d delete FAILED", index);
+    } 
+    else {
+      Serial.printf("SMS slot %d deleted!", index);
+    }
+  }
+}
+
+// Timer interrupt service routine
 void IRAM_ATTR timerISR() {
   Serial.println("2 minutes elapsed. Calling next number");
   if(pendingAlarm) {
@@ -117,7 +137,6 @@ void setup() {
   timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, &timerISR, true);
   
-
   // Setup Alarm pins
   JFLAlarm::setup(GPIO_NUM_25, GPIO_NUM_15, GPIO_NUM_12);
   
@@ -156,6 +175,9 @@ void setup() {
   sim800lSerial->print("AT+CNMI=2,1\r\n");
 
   Serial.println("GSM SIM800L Ready");
+
+  // Before starting, delete all SMS slots from storage
+  clearSMSSlots(SMS_SLOTS);
 }
 
 
