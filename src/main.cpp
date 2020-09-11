@@ -228,6 +228,16 @@ void loop() {
 
           sendSMS(callerIDbuffer, replybuffer);
         }
+        else if (smsString == "RESTART") {
+          Serial.println("Restart requested");
+          
+          delay(100);
+          snprintf(replybuffer, SMS_BUF_LEN, "O ESP32 será reiniciado, esse processo pode levar até 2 minutos.");
+          sendSMS(callerIDbuffer, replybuffer);
+          
+          delay(100);
+          ESP.restart();
+        }
         else if (smsString == "ARMAR") {
           Serial.println("Enable alarm requested");
 
