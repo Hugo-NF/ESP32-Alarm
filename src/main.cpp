@@ -17,6 +17,8 @@
 
 // Project files 
 #include "../include/JFLAlarm.hpp"
+#include "../include/Connectivity.h"
+#include "../include/OTAUpdate.h"
 
 // Library deps
 #include "Adafruit_FONA.h"
@@ -133,6 +135,12 @@ void setup() {
   // Start serial uart
   Serial.begin(9600);
 
+  // Connect to WiFi to receive updates via OTA
+  Connectivity::connectWiFi("<YOUR_SSID>", "<YOUR_PASSWORD>");
+
+  // Setup OTA
+  OTAUpdate::setup();
+
   // Setup timer
   timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, &timerISR, true);
@@ -182,6 +190,8 @@ void setup() {
 
 
 void loop() {
+  OTAUpdate::listen();
+
   char* bufPtr = sim800lNotificationBuffer;    //handy buffer pointer
 
   if (sim800l.available()) {
@@ -231,7 +241,7 @@ void loop() {
         else if (smsString == "RESTART") {
           Serial.println("Restart requested");
           
-          snprintf(replybuffer, SMS_BUF_LEN, "O ESP32 será reiniciado, esse processo pode levar até 2 minutos.");
+          snprintf(replybuffer, SMS_BUF_LEN, "O ESP32 sera reiniciado, esse processo pode levar ate 2 minutos.");
           sendSMS(callerIDbuffer, replybuffer);
           
           delay(100);
