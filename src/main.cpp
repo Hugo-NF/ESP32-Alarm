@@ -231,7 +231,6 @@ void loop() {
         else if (smsString == "RESTART") {
           Serial.println("Restart requested");
           
-          delay(100);
           snprintf(replybuffer, SMS_BUF_LEN, "O ESP32 será reiniciado, esse processo pode levar até 2 minutos.");
           sendSMS(callerIDbuffer, replybuffer);
           
@@ -289,7 +288,7 @@ void loop() {
           Serial.println("Help text requested");
 
           delay(100);
-          sendSMS(callerIDbuffer, "Comandos disponiveis: STATUS, ARMAR, DESARMAR, IMEI, LISTAR, REG, AJUDA");
+          sendSMS(callerIDbuffer, "Comandos disponiveis: STATUS, RESTART, ARMAR, DESARMAR, IMEI, LISTAR, REG, AJUDA");
         }
         else {
           delay(100);
