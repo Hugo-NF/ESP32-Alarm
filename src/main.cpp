@@ -17,8 +17,6 @@
 
 // Project files 
 #include "../include/JFLAlarm.hpp"
-#include "../include/Connectivity.h"
-#include "../include/OTAUpdate.h"
 
 // Library deps
 #include "Adafruit_FONA.h"
@@ -135,12 +133,6 @@ void setup() {
   // Start serial uart
   Serial.begin(9600);
 
-  // Connect to WiFi to receive updates via OTA
-  Connectivity::connectWiFi("<YOUR_SSID>", "<YOUR_PASSWORD>");
-
-  // Setup OTA
-  OTAUpdate::setup();
-
   // Setup timer
   timer = timerBegin(0, 80, true);
   timerAttachInterrupt(timer, &timerISR, true);
@@ -190,8 +182,6 @@ void setup() {
 
 
 void loop() {
-  OTAUpdate::listen();
-
   char* bufPtr = sim800lNotificationBuffer;    //handy buffer pointer
 
   if (sim800l.available()) {
@@ -323,6 +313,8 @@ void loop() {
   currentTimestamp = millis();
   uint16_t currentSIN = analogRead(JFLAlarm::pinSIN);
   uint16_t currentLED = analogRead(JFLAlarm::pinLED);
+
+  Serial.printf("Current SIN: %d\tPrevious SIN: %d\tCurrent LED: %d\tPrevious LED: %d\n", currentSIN, lastSIN, currentLED, lastLED);
 
   // Calculate transitions for LED
   // State changed && (Debouncing elapsed || Timer overflow)
